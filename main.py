@@ -6,6 +6,7 @@ from streamlit_chat import message
 import base64
 import pandas as pd
 import sqlite3
+from prompt import SUGGESTIONS_AGENT_SYSTEM_PROMPT, SYSTEM_PROMPT
 
 # Load CSV file into DataFrame
 df = pd.read_csv('data.csv')
@@ -35,131 +36,6 @@ def extract_sql_query_from_message(message: str) -> tuple[str, str]:
     else:
         return message, None
 
-SYSTEM_MESSAGE = """
-You are an AI Customer Support Agent of a popular Danish online Whiskey and Spirits store called Rauff & Fagerberg Whisky (rfwhisky.dk).
-You are tasked with helping customers with their order inquiries, providing information about products and services, and resolving any issues they may have.
-You can also provide recommendations on products based on customer preferences.
-Please note that you are not allowed to ask for or store any personal information from customers.
-Do not answer that is not relaveant to our store. Ask if you can help with anything else if the customer asks for something that is not relevant.
-This business operates in Denmark, so customers can communicate with you in Danish or English.
-When user communicates in Danish, you should respond in Danish. When user communicates in English, you should respond in English.
-
-You are provided with the following informations that you can use to answer customer inquiries:
-1. Business Details
-2. Product Categories, Types, and Brands
-
----------------------------------------------------
-1. Business Details:
-
-*Business Details*
-- Name: By Rauff & Fagerberg
-- Address: Klostervej 28E 1TV, 5000 Odense C
-- Contact: info@byraufffagerberg.dk | +45 31730143
-
-*Ordering*
-- Customers must be 18 years or older.
-- Confirmation email is sent after placing an order.
-
-*Payment Methods*
-- Visa, Mastercard, PayPal, Apple Pay, and Google Pay.
-- Payment is processed when the item is shipped.
-
-*Returns and Refunds*
-- 14-day return period after notifying the seller.
-- Customer bears return shipping costs and liability for transport damage.
-- Refunds are issued after receiving the item in satisfactory condition and may be reduced for any loss in value.
-
-*Shipping Options*
-- Shipping providers: DAO or Bring.
-- Delivery is limited to Denmark only (excludes Greenland and the Faroe Islands).
-
-*Delivery Times*
-- Standard delivery time: 2-3 business days after shipment.
-- Shipment is typically processed 2-3 business days after the order is placed.
-
-For more details and complete details suggest users to visit the Refund Policy page https://rfwhisky.dk/policies/refund-policy or Shipping Policy page https://rfwhisky.dk/policies/shipping-policy on the website.
----------------------------------------------------
-2. Product Categories, Types, and Brands:
-
-You have access to the database of products available on the website. The database contains the following fields:
-- Handle: Unique identifier for the product. This can be used to suggest the specific product page as https://rfwhisky.dk/products/{handle}.
-- Title: Name of the product. Contains the product name, brand, volume, and alcohol percentage.
-- Type: This is either 'rom' or 'whisky'. rom is rum and whisky is whisky.
-- Tags: Tags associated with the product. eg: Blend, Blended whisky, Nyheder, sherry, whisky
-- Variant Price: Price of the product.
-- Image Src: URL of the product image.
-
-* These are some of the brands and types of products available, when a user asks for suggestions, you can use these to suggest products:
-Compañero, Bivrost, Maclean’s Nose, STEKKJASTAUR, Sall Whisky, Glen Elgin, Blair Athol, High Coast, 
-Teaninich, Linkwood, Ardnamurchan, Worthy Park, S.B.S., Patridom, Longmorn, Caol Ila, Cambus, Highland (Tomatin), 
-Islay (Caol Ila), Speyside (Mortlach), Diamond Rum, Indiana Rye, Glasgow, Ben Nevis, Bunnahabhain, 
-Woodrow’s of Edinburgh, Auchroisk, Secret Speyside, Glen Garioch, Edradour, Craigellachie, Ardmore, 
-White Peak, Mannochmore, Inchgower, Miltonduff, Aultmore, Glenburgie, Secret Orkney, Macduff, 
-Mortlach, Penderyn, Bowmore, Spirit of Yorkshire, Benrinnes, Laphroig, Highland Park, Lochlea, 
-Fable Whisky, Bruichladdich, Tamdhu, North Star.
-
-* These are some of the tags associated with the products:
-Blend, Blended whisky, Bourbon, Danske aftapninger, England, fars dag, Gin, Highland, Island, 
-Isle, Islay, Japan, Last Bottle, Lowland, Nyheder, orkney, Port, Portvin, Red Cask, sherry, 
-Speyside, Whiskysmagning, World whisky.
-
-So a user can only query products by any of the following ways,
-1. They can either wish to search by name, brand, volume, or alcohol percentage.
-2. They can wish to search by either rum or whisky.
-3. They can wish to search by tags associated with the product.
-4. They can wish to search by price range.
-5. They can wish to sort the products by price.
-
-Steps to suggest products:
-1. When a user asks for a product, try to ask more supporting questions to narrow down the search.
-2. We do not suggest more than 5 products at a time.
-3. If the user asks for a specific product, provide the details of that product.
-4. User can more likely ask for lowest or highest price products, so you can provide the products based on that.
-5. You will be appending the SQL query at the end of the message that will be suitable for the user query.
-6. Make sure you only append the sql query at the end of the message, which then will be processed and displayed to the user. So user can see or click on the product link to see the product details.
-7. Use only the kr currency for the price range. If user attempts to use other currencies, ask them to use kr.
-8. When user asks for vendor/brand suggestions, just provide 5 or less brand names from above list. Only provide more if user asks for more suggestions.
-9. Suggest them that thath they can search by categories(Tags), and suggest a few tags to help them get started.
-
-If user has given the necessary information, you can provide the product details as the following examples:
-
-Example 1:
-Here are the whiskies that are a blend, between 100 and 200 kr:
-
-```sql
-SELECT * FROM products
-WHERE Tags LIKE '%Blend%'
-AND Type = 'whisky'
-AND `Variant Price` BETWEEN 100 AND 200
-LIMIT 5
-```
-
-Example 2:
-Here is the whisky you are looking for:
-
-```sql
-SELECT * FROM products
-WHERE Title LIKE '%whisky%'
-AND Type = 'whisky'
-LIMIT 1
-```
-
-Example 3:
-Here are the whiskies for Nyheder, from least to most expensive:
-    
-```sql
-SELECT * FROM products
-WHERE Tags LIKE '%Nyheder%'
-AND Type = 'whisky'
-ORDER BY `Variant Price` ASC
-LIMIT 5
-```
----------------------------------------------------
-
-Be a very friendly and helpful AI Customer Support Agent.
-Greet and explain how you can help the user to start the conversation.
-"""
-
 # Initialise session state variables
 if 'generated' not in st.session_state:
     st.session_state['generated'] = []
@@ -167,8 +43,10 @@ if 'past' not in st.session_state:
     st.session_state['past'] = []
 if 'messages' not in st.session_state:
     st.session_state['messages'] = [
-        {"role": "system", "content": SYSTEM_MESSAGE},
+        {"role": "system", "content": SYSTEM_PROMPT},
     ]
+if 'suggestions' not in st.session_state:
+    st.session_state['suggestions'] = []
 if 'model_name' not in st.session_state:
     st.session_state['model_name'] = []
 if 'cost' not in st.session_state:
@@ -202,8 +80,9 @@ if clear_button:
     st.session_state['generated'] = []
     st.session_state['past'] = []
     st.session_state['messages'] = [
-        {"role": "system", "content": SYSTEM_MESSAGE}
+        {"role": "system", "content": SYSTEM_PROMPT},
     ]
+    st.session_state['suggestions'] = []
     st.session_state['number_tokens'] = []
     st.session_state['model_name'] = []
     st.session_state['cost'] = []
@@ -239,17 +118,64 @@ def generate_response(prompt, images: list[bytes] = None):
     )
     response = completion.choices[0].message.content
     st.session_state['messages'].append({"role": "assistant", "content": response})
-
-    # print(st.session_state['messages'])
     total_tokens = completion.usage.total_tokens
     prompt_tokens = completion.usage.prompt_tokens
     completion_tokens = completion.usage.completion_tokens
     return response, total_tokens, prompt_tokens, completion_tokens
 
+# generate suggestions
+def generate_suggestions(prompt):
+    completion = client.chat.completions.create(
+        model='gpt-4o-mini',
+        messages=[
+            {"role": "system", "content": SUGGESTIONS_AGENT_SYSTEM_PROMPT},
+            {"role": "user", "content": f"""
+AI Agent's Message:
+{prompt}
+
+Your Suggestions:
+""",
+            },
+        ],
+    )
+    response = completion.choices[0].message.content
+    suggestions =  [
+        line[2:] for line in response.split("\n") if line.strip()
+    ]
+    return suggestions
+
 # container for chat history
 response_container = st.container()
 # container for text box
 container = st.container()
+# container for suggestions
+suggestions_container = st.container()
+
+def update_chat_response_state(user_input):
+    output, total_tokens, prompt_tokens, completion_tokens = generate_response(
+        user_input,
+        # images=[uploaded_file.read()] if uploaded_file else []
+    )
+    st.session_state['past'].append(user_input)
+    st.session_state['generated'].append(output)
+    st.session_state['model_name'].append(model_name)
+    st.session_state['total_tokens'].append(total_tokens)
+    suggestions = generate_suggestions(user_input)
+    st.session_state['suggestions'] = suggestions
+    # from https://openai.com/pricing#language-models
+    if model_name == "GPT-4o": # Input: US$0.005 / 1K | Output: US$0.015 / 1K
+        cost = ((prompt_tokens * 0.005) + (completion_tokens * 0.015)) / 1000
+    elif model_name == "GPT-4o-Mini": # Input: US$0.00015 / 1K | Output: US$0.0006 / 1K
+        cost = ((prompt_tokens * 0.0005) + (completion_tokens * 0.0015)) / 1000
+    elif model_name == "GPT-3.5": # Input: US$0.003 / 1K | Output: US$0.006 / 1K
+        cost = ((prompt_tokens * 0.003) + (completion_tokens * 0.006)) / 1000
+    elif model_name == "GPT-4-Turbo": # Input: US$0.01 / 1K | Output: US$0.03 / 1K
+        cost = ((prompt_tokens * 0.01) + (completion_tokens * 0.03)) / 1000
+    elif model_name == "O1-Preview": # Input: US$0.002 / 1K | Output: US$0.006 / 1K
+        cost = ((prompt_tokens * 0.002) + (completion_tokens * 0.006)) / 1000
+    st.session_state['cost'].append(cost)
+    st.session_state['total_cost'] += cost
+    return output, suggestions
 
 with container:
     with st.form(key='my_form', clear_on_submit=True):
@@ -258,29 +184,16 @@ with container:
         submit_button = st.form_submit_button(label='Send')
 
     if submit_button and user_input:
-        output, total_tokens, prompt_tokens, completion_tokens = generate_response(
-            user_input,
-            # images=[uploaded_file.read()] if uploaded_file else []
-        )
-        st.session_state['past'].append(user_input)
-        st.session_state['generated'].append(output)
-        st.session_state['model_name'].append(model_name)
-        st.session_state['total_tokens'].append(total_tokens)
+        update_chat_response_state(user_input)
 
-        # from https://openai.com/pricing#language-models
-        if model_name == "GPT-4o": # Input: US$0.005 / 1K | Output: US$0.015 / 1K
-            cost = ((prompt_tokens * 0.005) + (completion_tokens * 0.015)) / 1000
-        elif model_name == "GPT-4o-Mini": # Input: US$0.00015 / 1K | Output: US$0.0006 / 1K
-            cost = ((prompt_tokens * 0.0005) + (completion_tokens * 0.0015)) / 1000
-        elif model_name == "GPT-3.5": # Input: US$0.003 / 1K | Output: US$0.006 / 1K
-            cost = ((prompt_tokens * 0.003) + (completion_tokens * 0.006)) / 1000
-        elif model_name == "GPT-4-Turbo": # Input: US$0.01 / 1K | Output: US$0.03 / 1K
-            cost = ((prompt_tokens * 0.01) + (completion_tokens * 0.03)) / 1000
-        elif model_name == "O1-Preview": # Input: US$0.002 / 1K | Output: US$0.006 / 1K
-            cost = ((prompt_tokens * 0.002) + (completion_tokens * 0.006)) / 1000
-
-        st.session_state['cost'].append(cost)
-        st.session_state['total_cost'] += cost
+if st.session_state['suggestions']:
+    with suggestions_container:
+        for suggestion in st.session_state['suggestions']:
+            # click on suggestion to send it to the chat
+            st.button(
+                label=suggestion,
+                on_click=lambda s=suggestion: update_chat_response_state(s),
+            )
 
 if st.session_state['generated']:
     with response_container:
