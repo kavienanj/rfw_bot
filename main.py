@@ -31,7 +31,7 @@ def extract_sql_query_from_message(message: str) -> tuple[str, str]:
     if "```sql" in message:
         user_message = message.split("```sql")[0].strip()
         sql_query = message.split("```sql")[1].strip()
-        sql_query = sql_query.replace("\n```", "")
+        sql_query = sql_query.split("```")[0].strip()
         return user_message, sql_query
     else:
         return message, None
@@ -55,6 +55,12 @@ if 'total_tokens' not in st.session_state:
     st.session_state['total_tokens'] = []
 if 'total_cost' not in st.session_state:
     st.session_state['total_cost'] = 0.0
+if 'full_name' not in st.session_state:
+    st.session_state['full_name'] = ""
+if 'email' not in st.session_state:
+    st.session_state['email'] = ""
+if 'agreed' not in st.session_state:
+    st.session_state['agreed'] = False
 
 # Sidebar - let user choose model, show total cost of current conversation, and let user clear the current conversation
 st.sidebar.title("Sidebar")
@@ -88,6 +94,9 @@ if clear_button:
     st.session_state['cost'] = []
     st.session_state['total_cost'] = 0.0
     st.session_state['total_tokens'] = []
+    st.session_state['full_name'] = ""
+    st.session_state['email'] = ""
+    st.session_state['agreed'] = False
     counter_placeholder.write(f"Total cost of this conversation: ${st.session_state['total_cost']:.5f}")
 
 
@@ -124,16 +133,19 @@ def generate_response(prompt, images: list[bytes] = None):
     return response, total_tokens, prompt_tokens, completion_tokens
 
 # generate suggestions
-def generate_suggestions(prompt):
+def generate_suggestions(agent_prompt, user_prompt):
     completion = client.chat.completions.create(
         model='gpt-4o-mini',
         messages=[
             {"role": "system", "content": SUGGESTIONS_AGENT_SYSTEM_PROMPT},
             {"role": "user", "content": f"""
-AI Agent's Message:
-{prompt}
+User's Query:
+{user_prompt}
 
-Your Suggestions:
+AI Agent's Response:
+{agent_prompt}
+
+Next Possible Queriees from User:
 """,
             },
         ],
@@ -144,13 +156,6 @@ Your Suggestions:
     ]
     return suggestions
 
-# container for chat history
-response_container = st.container()
-# container for text box
-container = st.container()
-# container for suggestions
-suggestions_container = st.container()
-
 def update_chat_response_state(user_input):
     output, total_tokens, prompt_tokens, completion_tokens = generate_response(
         user_input,
@@ -160,7 +165,7 @@ def update_chat_response_state(user_input):
     st.session_state['generated'].append(output)
     st.session_state['model_name'].append(model_name)
     st.session_state['total_tokens'].append(total_tokens)
-    suggestions = generate_suggestions(user_input)
+    suggestions = generate_suggestions(output, user_input)
     st.session_state['suggestions'] = suggestions
     # from https://openai.com/pricing#language-models
     if model_name == "GPT-4o": # Input: US$0.005 / 1K | Output: US$0.015 / 1K
@@ -177,14 +182,42 @@ def update_chat_response_state(user_input):
     st.session_state['total_cost'] += cost
     return output, suggestions
 
-with container:
-    with st.form(key='my_form', clear_on_submit=True):
-        # uploaded_file = st.file_uploader("Upload an image", type=["jpeg", "png"], accept_multiple_files=False)
-        user_input = st.text_input("You:", key='input')
-        submit_button = st.form_submit_button(label='Send')
+def user_form_submitted():
+    return st.session_state["full_name"] and st.session_state["email"] and st.session_state["agreed"]
 
-    if submit_button and user_input:
-        update_chat_response_state(user_input)
+if not user_form_submitted():
+    with st.form("details_form"):
+        st.write("Provide your details")
+        full_name_val = st.text_input("Full Name")
+        email_val = st.text_input("Email")
+        checkbox_val = st.checkbox("I agree to the terms and conditions")
+
+        # Every form must have a submit button.
+        submitted = st.form_submit_button("Submit")
+        if submitted:
+            st.session_state["full_name"] = full_name_val
+            st.session_state["email"] = email_val
+            st.session_state["agreed"] = checkbox_val
+            st.write(f"Hello {st.session_state['full_name']}! How can I help you today?")
+else:
+    message(f"Hello {st.session_state['full_name']}! How can I help you today?", key=str('-2'), allow_html=True)
+
+# container for chat history
+response_container = st.container()
+# container for text box
+container = st.container()
+# container for suggestions
+suggestions_container = st.container()
+
+if user_form_submitted():
+    with container:
+        with st.form(key='my_form', clear_on_submit=True):
+            # uploaded_file = st.file_uploader("Upload an image", type=["jpeg", "png"], accept_multiple_files=False)
+            user_input = st.text_input("You:", key='input')
+            submit_button = st.form_submit_button(label='Send')
+
+        if submit_button and user_input:
+            update_chat_response_state(user_input)
 
 if st.session_state['suggestions']:
     with suggestions_container:

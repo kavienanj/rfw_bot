@@ -12,14 +12,12 @@ df.to_sql('products', conn, if_exists='replace', index=False)
 
 # Run a simple SQL query
 query = """
-SELECT * FROM products
-WHERE `Variant Price` <= 500
-LIMIT 5
+SELECT *, Title_en as Title FROM products WHERE Taste LIKE '%Smoky%' AND Type = 'whisky' LIMIT 5
 """
 result = pd.read_sql_query(query, conn)
 
 # Print the result
-print(result[['Title']])
+print(result[['Title_en']])
 
 # Close the connection
 conn.close()
