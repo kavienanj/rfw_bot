@@ -17,6 +17,15 @@ conn = sqlite3.connect('data.db')
 # Convert DataFrame to SQL table
 df.to_sql('products', conn, if_exists='replace', index=False)
 
+# Initial Suggestions
+initial_suggestions = [
+    "Show me some whiskey/rum recommendations",
+    "I want to gift a whiskey/rum to someone",
+    "I am looking for a whiskey/rum with a specific taste",
+    "I have some questions to ask | FAQ",
+    "Tell me about the Rauff & Fagerberg Whisky | About Us",
+]
+
 load_dotenv()
 
 # Setting page title and header
@@ -46,7 +55,7 @@ if 'messages' not in st.session_state:
         {"role": "system", "content": SYSTEM_PROMPT},
     ]
 if 'suggestions' not in st.session_state:
-    st.session_state['suggestions'] = []
+    st.session_state['suggestions'] = initial_suggestions.copy()
 if 'model_name' not in st.session_state:
     st.session_state['model_name'] = []
 if 'cost' not in st.session_state:
@@ -88,7 +97,7 @@ if clear_button:
     st.session_state['messages'] = [
         {"role": "system", "content": SYSTEM_PROMPT},
     ]
-    st.session_state['suggestions'] = []
+    st.session_state['suggestions'] = initial_suggestions.copy()
     st.session_state['number_tokens'] = []
     st.session_state['model_name'] = []
     st.session_state['cost'] = []
@@ -219,14 +228,15 @@ if user_form_submitted():
         if submit_button and user_input:
             update_chat_response_state(user_input)
 
-if st.session_state['suggestions']:
-    with suggestions_container:
-        for suggestion in st.session_state['suggestions']:
-            # click on suggestion to send it to the chat
-            st.button(
-                label=suggestion,
-                on_click=lambda s=suggestion: update_chat_response_state(s),
-            )
+if user_form_submitted():
+    if st.session_state['suggestions']:
+        with suggestions_container:
+            for suggestion in st.session_state['suggestions']:
+                # click on suggestion to send it to the chat
+                st.button(
+                    label=suggestion,
+                    on_click=lambda s=suggestion: update_chat_response_state(s),
+                )
 
 if st.session_state['generated']:
     with response_container:
