@@ -3,10 +3,13 @@ from dotenv import load_dotenv
 from openai import OpenAI
 import streamlit as st
 from streamlit_chat import message
-import base64
 import pandas as pd
 import sqlite3
 from prompt import SUGGESTIONS_AGENT_SYSTEM_PROMPT, SYSTEM_PROMPT
+from zendesk_test import ZendeskService
+
+# ZendeskService class
+zendesk = ZendeskService()
 
 # Load CSV file into DataFrame
 df = pd.read_csv('data.csv')
@@ -70,6 +73,10 @@ if 'email' not in st.session_state:
     st.session_state['email'] = ""
 if 'agreed' not in st.session_state:
     st.session_state['agreed'] = False
+if 'requester_id' not in st.session_state:
+    st.session_state['requester_id'] = None
+if 'ticket_id' not in st.session_state:
+    st.session_state['ticket_id'] = None
 
 # Sidebar - let user choose model, show total cost of current conversation, and let user clear the current conversation
 st.sidebar.title("Sidebar")
@@ -106,30 +113,14 @@ if clear_button:
     st.session_state['full_name'] = ""
     st.session_state['email'] = ""
     st.session_state['agreed'] = False
+    st.session_state['requester_id'] = None
+    st.session_state['ticket_id'] = None
     counter_placeholder.write(f"Total cost of this conversation: ${st.session_state['total_cost']:.5f}")
 
 
 # generate a response
-def generate_response(prompt, images: list[bytes] = None):
-    if images:
-        base64_image = base64.b64encode(images[0]).decode('utf-8')
-        content = [
-            {
-                "type": "text",
-                "text": prompt,
-            },
-            {
-                "type": "image_url",
-                "image_url": {
-                    "url": f"data:image/jpeg;base64,{base64_image}",
-                    "detail": "high"
-                },
-            },
-        ]
-        st.session_state['messages'].append({"role": "user", "content": content})
-    else:
-        st.session_state['messages'].append({"role": "user", "content": prompt})
-
+def generate_response(prompt):
+    st.session_state['messages'].append({"role": "user", "content": prompt})
     completion = client.chat.completions.create(
         model=model,
         messages=st.session_state['messages']
@@ -166,9 +157,24 @@ Next Possible Queriees from User:
     return suggestions
 
 def update_chat_response_state(user_input):
-    output, total_tokens, prompt_tokens, completion_tokens = generate_response(
+    if len(st.session_state['messages']) == 1:
+        ticket_id = zendesk.create_ticket(user_input, user_input)
+        st.session_state['ticket_id'] = ticket_id
+        zendesk.add_agent_comment(
+            ticket_id,
+            f"Velkommen til butikken! Hvordan kan jeg hjælpe dig i dag?\n\nWelcome to RFwhisky! How can i help you today?\n\nHello {st.session_state['full_name']}! How can I help you today?",
+            st.session_state['requester_id']
+        )
+    zendesk.add_requester_comment(
+        st.session_state['ticket_id'],
         user_input,
-        # images=[uploaded_file.read()] if uploaded_file else []
+        st.session_state['requester_id']
+    )
+    output, total_tokens, prompt_tokens, completion_tokens = generate_response(user_input)
+    zendesk.add_agent_comment(
+        st.session_state['ticket_id'],
+        output,
+        st.session_state['requester_id']
     )
     st.session_state['past'].append(user_input)
     st.session_state['generated'].append(output)
@@ -207,6 +213,12 @@ if not user_form_submitted():
             st.session_state["full_name"] = full_name_val
             st.session_state["email"] = email_val
             st.session_state["agreed"] = checkbox_val
+            user = zendesk.get_user(st.session_state["email"])
+            if user:
+                st.session_state["requester_id"] = user["id"]
+            else:
+                user = zendesk.create_user(st.session_state["full_name"], st.session_state["email"])
+                st.session_state["requester_id"] = user["id"]
             st.write(f"Hello {st.session_state['full_name']}! How can I help you today?")
 else:
     message(f"Hello {st.session_state['full_name']}! How can I help you today?", key=str('-2'), allow_html=True)
