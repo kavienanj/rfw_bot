@@ -6,7 +6,8 @@ from streamlit_chat import message
 import pandas as pd
 import sqlite3
 from prompt import SUGGESTIONS_AGENT_SYSTEM_PROMPT, SYSTEM_PROMPT
-from zendesk_test import ZendeskService
+from translations import *
+from zendesk_service import ZendeskService
 
 # ZendeskService class
 zendesk = ZendeskService()
@@ -20,21 +21,11 @@ conn = sqlite3.connect('data.db')
 # Convert DataFrame to SQL table
 df.to_sql('products', conn, if_exists='replace', index=False)
 
-# Initial Suggestions
-initial_suggestions = [
-    "Show me some whiskey/rum recommendations",
-    "I want to gift a whiskey/rum to someone",
-    "I am looking for a whiskey/rum with a specific taste",
-    "I have some questions to ask | FAQ",
-    "Tell me about the Rauff & Fagerberg Whisky | About Us",
-]
-
 load_dotenv()
 
 # Setting page title and header
 st.set_page_config(page_title="Rauff & Fagerberg Whisky", page_icon=":robot_face:")
 st.markdown("<h2 style='text-align: center;'>Rauff & Fagerberg Whisky - AI Assitant</h1>", unsafe_allow_html=True)
-message("Velkommen til butikken! Hvordan kan jeg hjælpe dig i dag?\n\nWelcome to RFwhisky! How can i help you today?", key=str('-1'), allow_html=True)
 
 # Create OpenAI client
 client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
@@ -58,7 +49,7 @@ if 'messages' not in st.session_state:
         {"role": "system", "content": SYSTEM_PROMPT},
     ]
 if 'suggestions' not in st.session_state:
-    st.session_state['suggestions'] = initial_suggestions.copy()
+    st.session_state['suggestions'] = []
 if 'model_name' not in st.session_state:
     st.session_state['model_name'] = []
 if 'cost' not in st.session_state:
@@ -81,9 +72,18 @@ if 'ticket_id' not in st.session_state:
 # Sidebar - let user choose model, show total cost of current conversation, and let user clear the current conversation
 st.sidebar.title("Sidebar")
 model_name = st.sidebar.radio("Choose a model:", ("GPT-4o", "GPT-4o-Mini", "GPT-4-Turbo", "GPT-3.5", "O1-Preview"))
+language = st.sidebar.selectbox("Choose a language:", ("Danish", "English"))
 counter_placeholder = st.sidebar.empty()
 counter_placeholder.write(f"Total cost of this conversation: ${st.session_state['total_cost']:.5f}")
 clear_button = st.sidebar.button("Clear Conversation", key="clear")
+
+if language == "Danish":
+    labels = translations["Danish"]
+else:
+    labels = translations["English"]
+
+initial_suggestions = labels["Suggestions"]
+message(labels['Welcome Message'], key=str('-1'), allow_html=True)
 
 # Map model names to OpenAI model IDs
 if model_name == "GPT-4o":
@@ -104,7 +104,7 @@ if clear_button:
     st.session_state['messages'] = [
         {"role": "system", "content": SYSTEM_PROMPT},
     ]
-    st.session_state['suggestions'] = initial_suggestions.copy()
+    st.session_state['suggestions'] = []
     st.session_state['number_tokens'] = []
     st.session_state['model_name'] = []
     st.session_state['cost'] = []
@@ -162,7 +162,7 @@ def update_chat_response_state(user_input):
         st.session_state['ticket_id'] = ticket_id
         zendesk.add_agent_comment(
             ticket_id,
-            f"Velkommen til butikken! Hvordan kan jeg hjælpe dig i dag?\n\nWelcome to RFwhisky! How can i help you today?\n\nHello {st.session_state['full_name']}! How can I help you today?",
+            f"{labels['Welcome Message']}\n\n{labels['Hello User'].format(full_name=st.session_state['full_name'])}",
             st.session_state['requester_id']
         )
     zendesk.add_requester_comment(
@@ -202,26 +202,27 @@ def user_form_submitted():
 
 if not user_form_submitted():
     with st.form("details_form"):
-        st.write("Provide your details")
-        full_name_val = st.text_input("Full Name")
-        email_val = st.text_input("Email")
-        checkbox_val = st.checkbox("I agree to the terms and conditions")
+        st.write(labels["Provide your details"])
+        full_name_val = st.text_input(labels["Full Name"])
+        email_val = st.text_input(labels["Email"])
+        checkbox_val = st.checkbox(labels["I agree to the terms and conditions"])
 
         # Every form must have a submit button.
-        submitted = st.form_submit_button("Submit")
+        submitted = st.form_submit_button(labels["Submit"])
         if submitted:
             st.session_state["full_name"] = full_name_val
             st.session_state["email"] = email_val
             st.session_state["agreed"] = checkbox_val
+            st.session_state["suggestions"] = initial_suggestions
             user = zendesk.get_user(st.session_state["email"])
             if user:
                 st.session_state["requester_id"] = user["id"]
             else:
                 user = zendesk.create_user(st.session_state["full_name"], st.session_state["email"])
                 st.session_state["requester_id"] = user["id"]
-            st.write(f"Hello {st.session_state['full_name']}! How can I help you today?")
+            st.write(labels["Hello User"].format(full_name=st.session_state['full_name']))
 else:
-    message(f"Hello {st.session_state['full_name']}! How can I help you today?", key=str('-2'), allow_html=True)
+    message(str(labels["Hello User"]).format(full_name=st.session_state['full_name']), key=str('-2'), allow_html=True)
 
 # container for chat history
 response_container = st.container()
@@ -234,8 +235,8 @@ if user_form_submitted():
     with container:
         with st.form(key='my_form', clear_on_submit=True):
             # uploaded_file = st.file_uploader("Upload an image", type=["jpeg", "png"], accept_multiple_files=False)
-            user_input = st.text_input("You:", key='input')
-            submit_button = st.form_submit_button(label='Send')
+            user_input = st.text_input(labels["You:"], key='input')
+            submit_button = st.form_submit_button(label=labels["Submit"])
 
         if submit_button and user_input:
             update_chat_response_state(user_input)
@@ -269,14 +270,14 @@ if st.session_state['generated']:
                             <div style="border: 1px solid #ddd; padding: 10px; margin: 10px; border-radius: 5px; text-align: center;">
                                 <img src="{row['Image Src']}" alt="{row['Title']}" style="width: 100px; height: 100px;">
                                 <h6>{row['Title']}</h6>
-                                <p>Price: {row['Variant Price']} kr</p>
-                                <a href="https://rfwhisky.dk/products/{row['Handle']}" target="_blank">View Product</a>
+                                <p>{labels["Price"]}: {row['Variant Price']} kr</p>
+                                <a href="https://rfwhisky.dk/products/{row['Handle']}" target="_blank">{labels["View Product"]}</a>
                             </div>
                             """, unsafe_allow_html=True)
                 else:
-                    generated_message = "Sorry, no matching products found. Would you like to try any other whiskey or rum?"
+                    generated_message = labels["Sorry no products"]
                     message(generated_message, key=str(i), allow_html=True)
-                    st.write("No results found.")
+                    st.write(labels["No results found"])
             else:
                 message(generated_message, key=str(i), allow_html=True)
             # st.write(
