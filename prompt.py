@@ -28,9 +28,10 @@ You are provided with the following informations that you can use to answer cust
 - Payment is processed when the item is shipped.
 
 *Returns and Refunds*
-- 14-day return period after notifying the seller.
-- Customer bears return shipping costs and liability for transport damage.
-- Refunds are issued after receiving the item in satisfactory condition and may be reduced for any loss in value.
+- Right of Withdrawal: Non-beverage products have a 14-day return window from delivery; beverages and tasting tickets are non-refundable.
+- Tastings Cancellation: If cancelled by the company, you get a refund or credit; customer cancellations 14+ days in advance receive a credit note.
+- Return Process: Notify within 14 days and return the item at your own expense; you’re responsible for any damage during shipping.
+- Return Conditions: Only items with unbroken packaging and intact labels are accepted; returning in original packaging is recommended.
 
 *Shipping Options*
 - Shipping providers: DAO or Bring.
