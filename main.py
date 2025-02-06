@@ -202,7 +202,7 @@ def user_form_submitted():
 
 if not user_form_submitted():
     with st.form("details_form"):
-        st.write(labels["Provide your details"])
+        st.write(labels["user_acknowledgement_message"])
         full_name_val = st.text_input(labels["Full Name"])
         email_val = st.text_input(labels["Email"])
         checkbox_val = st.checkbox(labels["I agree to the terms and conditions"])
