@@ -14,74 +14,96 @@ class ZendeskService:
         self.headers = {'Content-Type': 'application/json'}
 
     def create_ticket(self, subject, description):
-        url = f'https://{self.subdomain}/api/v2/tickets.json'
-        data = {
-            "ticket": {
-                "subject": subject,
-                "description": description
-            }
-        }
-        response = requests.post(url, json=data, auth=self.auth, headers=self.headers)
-        if response.status_code != 201:
-            print('Status:', response.status_code, 'Problem with the request. Exiting.')
-        return response.json()['ticket']['id']
-
-    def get_user(self, email):
-        url = f'https://{self.subdomain}/api/v2/users/search.json?query={email}'
-        response = requests.get(url, auth=self.auth)
-        if response.status_code != 200:
-            print('Status:', response.status_code, 'Problem with the user search request. Exiting.')
-        users = response.json().get('users')
-        return users[0] if users else None
-
-    def create_user(self, name, email):
-        url = f'https://{self.subdomain}/api/v2/users.json'
-        data = {
-            "user": {
-                "name": name,
-                "email": email,
-                "role": "end-user"
-            }
-        }
-        response = requests.post(url, json=data, auth=self.auth)
-        if response.status_code != 201:
-            print('Status:', response.status_code, 'Problem with the user creation request. Exiting.')
-        return response.json()['user']
-
-    def add_agent_comment(self, ticket_id, comment, requester_id=None):
-        url = f'https://{self.subdomain}/api/v2/tickets/{ticket_id}.json'
-        data = {
-            "ticket": {
-                "comment": {
-                    "body": comment
-                },
-                "requester_id": requester_id
-            }
-        }
-        response = requests.put(url, json=data, auth=self.auth, headers=self.headers)
-        if response.status_code != 200:
-            print('Status:', response.status_code, 'Problem with the request. Exiting.')
-
-    def add_requester_comment(self, ticket_id, comment, requester_id=None):
-        url = f'https://{self.subdomain}/api/v2/tickets/{ticket_id}.json'
-        data = {
-            "ticket": {
-                "comment": {
-                    "body": comment,
-                    "author_id": requester_id
+        try:
+            url = f'https://{self.subdomain}/api/v2/tickets.json'
+            data = {
+                "ticket": {
+                    "subject": subject,
+                    "description": description
                 }
             }
-        }
-        response = requests.put(url, json=data, auth=self.auth, headers=self.headers)
-        if response.status_code != 200:
-            print('Status:', response.status_code, 'Problem with the request. Exiting.')
+            response = requests.post(url, json=data, auth=self.auth, headers=self.headers)
+            if response.status_code != 201:
+                print('Status:', response.status_code, 'Problem with the request. Exiting.')
+            return response.json()['ticket']['id']
+        except Exception as e:
+            print('Error:', e)
+            return 12
+
+    def get_user(self, email):
+        try:
+            url = f'https://{self.subdomain}/api/v2/users/search.json?query={email}'
+            response = requests.get(url, auth=self.auth)
+            if response.status_code != 200:
+                print('Status:', response.status_code, 'Problem with the user search request. Exiting.')
+            users = response.json().get('users')
+            return users[0] if users else None
+        except Exception as e:
+            print('Error:', e)
+            return None
+
+    def create_user(self, name, email):
+        try:
+            url = f'https://{self.subdomain}/api/v2/users.json'
+            data = {
+                "user": {
+                    "name": name,
+                    "email": email,
+                    "role": "end-user"
+                }
+            }
+            response = requests.post(url, json=data, auth=self.auth)
+            if response.status_code != 201:
+                print('Status:', response.status_code, 'Problem with the user creation request. Exiting.')
+            return response.json()['user']
+        except Exception as e:
+            print('Error:', e)
+            return None
+
+    def add_agent_comment(self, ticket_id, comment, requester_id=None):
+        try:
+            url = f'https://{self.subdomain}/api/v2/tickets/{ticket_id}.json'
+            data = {
+                "ticket": {
+                    "comment": {
+                        "body": comment
+                    },
+                    "requester_id": requester_id
+                }
+            }
+            response = requests.put(url, json=data, auth=self.auth, headers=self.headers)
+            if response.status_code != 200:
+                print('Status:', response.status_code, 'Problem with the request. Exiting.')
+        except Exception as e:
+            print('Error:', e)
+
+    def add_requester_comment(self, ticket_id, comment, requester_id=None):
+        try:
+            url = f'https://{self.subdomain}/api/v2/tickets/{ticket_id}.json'
+            data = {
+                "ticket": {
+                    "comment": {
+                        "body": comment,
+                        "author_id": requester_id
+                    }
+                }
+            }
+            response = requests.put(url, json=data, auth=self.auth, headers=self.headers)
+            if response.status_code != 200:
+                print('Status:', response.status_code, 'Problem with the request. Exiting.')
+        except Exception as e:
+            print('Error:', e)
     
     def get_tickets(self):
-        url = f'https://{self.subdomain}/api/v2/tickets.json'
-        response = requests.get(url, auth=self.auth)
-        if response.status_code != 200:
-            print('Status:', response.status_code, 'Problem with the request. Exiting.')
-        return response.json()['tickets']
+        try:
+            url = f'https://{self.subdomain}/api/v2/tickets.json'
+            response = requests.get(url, auth=self.auth)
+            if response.status_code != 200:
+                print('Status:', response.status_code, 'Problem with the request. Exiting.')
+            return response.json()['tickets']
+        except Exception as e:
+            print('Error:', e)
+            return None
 
 # Example usage
 if __name__ == "__main__":
